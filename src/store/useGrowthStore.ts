@@ -9,6 +9,25 @@ import { generateId, todayStr, isSameDay, isConsecutiveDay } from '@/utils/date'
 
 export type PlantStage = 'seed' | 'sprout' | 'leaf' | 'flower' | 'fruit';
 
+export type MoodType = 'brave' | 'compassionate' | 'love' | 'letgo' | 'surrender' | 'hope' | 'gratitude' | 'strength';
+
+export interface QuestionAnswer {
+  id: string;
+  topicId: number;
+  questionIndex: number;
+  questionText: string;
+  answer: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActionMood {
+  topicId: number;
+  actionKey: string;
+  mood: MoodType;
+  timestamp: string;
+}
+
 export interface WateringRecord {
   id: string;
   topicId: number;
@@ -30,6 +49,8 @@ interface GrowthStore {
   plant: PlantState;
   records: WateringRecord[];
   actionCheckins: Record<string, boolean>;
+  questionAnswers: QuestionAnswer[];
+  actionMoods: ActionMood[];
   /** 执行一次浇灌 */
   water: (topicId: number, data?: Partial<WateringRecord>) => void;
   /** 获取某议题的浇灌次数 */
@@ -38,6 +59,16 @@ interface GrowthStore {
   toggleAction: (topicId: number, actionKey: string) => void;
   /** 检查行动是否已勾选 */
   isActionChecked: (topicId: number, actionKey: string) => boolean;
+  /** 保存问题回答 */
+  saveAnswer: (topicId: number, questionIndex: number, questionText: string, answer: string) => void;
+  /** 获取某议题的所有回答 */
+  getTopicAnswers: (topicId: number) => QuestionAnswer[];
+  /** 获取某个问题的回答 */
+  getAnswer: (topicId: number, questionIndex: number) => QuestionAnswer | undefined;
+  /** 为行动添加情感贴图 */
+  setActionMood: (topicId: number, actionKey: string, mood: MoodType) => void;
+  /** 获取行动的情感贴图 */
+  getActionMood: (topicId: number, actionKey: string) => MoodType | undefined;
   /** 从本地存储加载数据 */
   loadFromStorage: () => void;
   /** 重置所有数据 */
@@ -78,6 +109,8 @@ export const useGrowthStore = create<GrowthStore>((set, get) => ({
   plant: defaultPlantState,
   records: [],
   actionCheckins: {},
+  questionAnswers: [],
+  actionMoods: [],
 
   water: (topicId, data = {}) => {
     const today = todayStr();
@@ -157,6 +190,75 @@ export const useGrowthStore = create<GrowthStore>((set, get) => ({
     return !!get().actionCheckins[`${topicId}_${actionKey}`];
   },
 
+  saveAnswer: (topicId, questionIndex, questionText, answer) => {
+    const now = new Date().toISOString();
+    set(state => {
+      const existingIndex = state.questionAnswers.findIndex(
+        a => a.topicId === topicId && a.questionIndex === questionIndex
+      );
+      
+      let newAnswers: QuestionAnswer[];
+      if (existingIndex >= 0) {
+        newAnswers = [...state.questionAnswers];
+        newAnswers[existingIndex] = {
+          ...newAnswers[existingIndex],
+          answer,
+          questionText,
+          updatedAt: now,
+        };
+      } else {
+        newAnswers = [
+          ...state.questionAnswers,
+          {
+            id: generateId(),
+            topicId,
+            questionIndex,
+            questionText,
+            answer,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ];
+      }
+      
+      saveToStorage(STORAGE_KEYS.QUESTION_ANSWERS, newAnswers);
+      return { questionAnswers: newAnswers };
+    });
+  },
+
+  getTopicAnswers: (topicId: number) => {
+    return get().questionAnswers.filter(a => a.topicId === topicId).sort((a, b) => a.questionIndex - b.questionIndex);
+  },
+
+  getAnswer: (topicId: number, questionIndex: number) => {
+    return get().questionAnswers.find(a => a.topicId === topicId && a.questionIndex === questionIndex);
+  },
+
+  setActionMood: (topicId, actionKey, mood) => {
+    const now = new Date().toISOString();
+    set(state => {
+      const existingIndex = state.actionMoods.findIndex(
+        m => m.topicId === topicId && m.actionKey === actionKey
+      );
+      
+      let newMoods: ActionMood[];
+      if (existingIndex >= 0) {
+        newMoods = [...state.actionMoods];
+        newMoods[existingIndex] = { ...newMoods[existingIndex], mood, timestamp: now };
+      } else {
+        newMoods = [...state.actionMoods, { topicId, actionKey, mood, timestamp: now }];
+      }
+      
+      saveToStorage(STORAGE_KEYS.ACTION_MOODS, newMoods);
+      return { actionMoods: newMoods };
+    });
+  },
+
+  getActionMood: (topicId: number, actionKey: string) => {
+    const mood = get().actionMoods.find(m => m.topicId === topicId && m.actionKey === actionKey);
+    return mood?.mood;
+  },
+
   loadFromStorage: () => {
     const plant = loadFromStorage<PlantState>(STORAGE_KEYS.PLANT_STATE, defaultPlantState);
     const records = loadFromStorage<WateringRecord[]>(STORAGE_KEYS.WATERING_RECORDS, []);
@@ -164,17 +266,23 @@ export const useGrowthStore = create<GrowthStore>((set, get) => ({
       STORAGE_KEYS.ACTION_CHECKINS,
       {}
     );
-    set({ plant, records, actionCheckins });
+    const questionAnswers = loadFromStorage<QuestionAnswer[]>(STORAGE_KEYS.QUESTION_ANSWERS, []);
+    const actionMoods = loadFromStorage<ActionMood[]>(STORAGE_KEYS.ACTION_MOODS, []);
+    set({ plant, records, actionCheckins, questionAnswers, actionMoods });
   },
 
   resetAll: () => {
     saveToStorage(STORAGE_KEYS.PLANT_STATE, defaultPlantState);
     saveToStorage(STORAGE_KEYS.WATERING_RECORDS, []);
     saveToStorage(STORAGE_KEYS.ACTION_CHECKINS, {});
+    saveToStorage(STORAGE_KEYS.QUESTION_ANSWERS, []);
+    saveToStorage(STORAGE_KEYS.ACTION_MOODS, []);
     set({
       plant: defaultPlantState,
       records: [],
       actionCheckins: {},
+      questionAnswers: [],
+      actionMoods: [],
     });
   },
 }));

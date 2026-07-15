@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   PLANT_STATE: 'life_rainbow_plant_state',
   WATERING_RECORDS: 'life_rainbow_watering_records',
   ACTION_CHECKINS: 'life_rainbow_action_checkins',
+  QUESTION_ANSWERS: 'life_rainbow_question_answers',
+  ACTION_MOODS: 'life_rainbow_action_moods',
 } as const;
 
 /**

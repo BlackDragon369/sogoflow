@@ -130,7 +130,7 @@ export default function Topic() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
         >
-          <GuidedQuestions questions={topic.questions} color={topic.color} />
+          <GuidedQuestions questions={topic.questions} color={topic.color} topicId={topicId} />
         </motion.div>
 
         {/* 微行动阶梯 */}
